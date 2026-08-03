@@ -1,26 +1,381 @@
-@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;600;700;800;900&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design Tokens ─────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand colors */
+  --brand-primary:   220 95% 60%;   /* vivid indigo */
+  --brand-secondary: 275 85% 65%;   /* purple */
+  --brand-accent:    340 90% 60%;   /* pink/red */
+  --brand-success:   142 70% 50%;
+  --brand-warning:   38 92% 55%;
+  --brand-danger:    0 85% 60%;
+
+  /* UNO card colors */
+  --uno-red:    0 88% 55%;
+  --uno-green:  140 65% 45%;
+  --uno-blue:   215 90% 55%;
+  --uno-yellow: 48 100% 52%;
+  --uno-wild:   275 80% 60%;
+
+  /* Surface */
+  --surface-bg:       222 28% 9%;
+  --surface-card:     224 24% 12%;
+  --surface-elevated: 226 22% 15%;
+  --surface-border:   228 18% 22%;
+  --surface-hover:    226 20% 18%;
+
+  /* Text */
+  --text-primary:   0 0% 97%;
+  --text-secondary: 220 15% 65%;
+  --text-muted:     220 12% 45%;
+
+  /* Glow effects */
+  --glow-primary:   rgba(99,102,241,0.35);
+  --glow-secondary: rgba(168,85,247,0.35);
+  --glow-danger:    rgba(239,68,68,0.35);
+  --glow-success:   rgba(34,197,94,0.35);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.light {
+  --surface-bg:       210 30% 96%;
+  --surface-card:     0 0% 100%;
+  --surface-elevated: 210 25% 92%;
+  --surface-border:   220 15% 82%;
+  --surface-hover:    210 20% 90%;
+  --text-primary:     222 35% 8%;
+  --text-secondary:   220 15% 35%;
+  --text-muted:       220 12% 55%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* ─── Base ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: hsl(var(--surface-bg));
+  color: hsl(var(--text-primary));
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: hsl(var(--surface-card)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--surface-border)); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--text-muted)); }
+
+/* ─── Glass morphism ────────────────────────────────────── */
+.glass {
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.glass-strong {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+/* ─── UNO Card Styles ───────────────────────────────────── */
+.uno-card {
+  position: relative;
+  width: 70px;
+  height: 105px;
+  border-radius: 10px;
+  border: 3px solid rgba(255,255,255,0.25);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  user-select: none;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 900;
+  overflow: hidden;
+}
+
+.uno-card::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.12);
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.uno-card:hover:not(.disabled) {
+  transform: translateY(-12px) scale(1.06);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 30px var(--glow-primary);
+  border-color: rgba(255,255,255,0.5);
+  z-index: 10;
+}
+
+.uno-card.selected {
+  transform: translateY(-20px) scale(1.1);
+  box-shadow: 0 24px 48px rgba(0,0,0,0.6), 0 0 40px var(--glow-primary);
+  border-color: white;
+  z-index: 20;
+}
+
+.uno-card.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(30%);
+}
+
+.uno-card.red    { background: linear-gradient(135deg, hsl(0 88% 55%), hsl(0 80% 40%)); }
+.uno-card.green  { background: linear-gradient(135deg, hsl(140 65% 45%), hsl(140 60% 30%)); }
+.uno-card.blue   { background: linear-gradient(135deg, hsl(215 90% 55%), hsl(215 85% 38%)); }
+.uno-card.yellow { background: linear-gradient(135deg, hsl(48 100% 55%), hsl(42 95% 40%)); }
+.uno-card.wild   { background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899); }
+
+.card-value {
+  position: relative;
+  z-index: 1;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: white;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  letter-spacing: -1px;
+}
+
+.card-corner {
+  position: absolute;
+  font-size: 0.55rem;
+  font-weight: 900;
+  color: white;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+.card-corner.top-left  { top: 4px; left: 6px; }
+.card-corner.bot-right { bottom: 4px; right: 6px; transform: rotate(180deg); }
+
+/* Card back */
+.uno-card-back {
+  background: linear-gradient(135deg, #1e1b4b, #312e81);
+  border: 3px solid rgba(99,102,241,0.4);
+}
+.uno-card-back::after {
+  content: 'UNO';
+  position: absolute;
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: rgba(99,102,241,0.8);
+  letter-spacing: 2px;
+}
+
+/* ─── Player avatar ring ────────────────────────────────── */
+.player-ring {
+  position: relative;
+}
+.player-ring.active::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #6366f1, #a855f7, #ec4899, #6366f1);
+  animation: spin 1.5s linear infinite;
+  z-index: -1;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Animations ────────────────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px var(--glow-primary); }
+  50%       { box-shadow: 0 0 40px var(--glow-primary), 0 0 70px var(--glow-secondary); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes card-deal {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-20deg); }
+  to   { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
+}
+
+@keyframes uno-flash {
+  0%, 100% { background: rgba(239,68,68,0.2); }
+  50%       { background: rgba(239,68,68,0.6); box-shadow: 0 0 40px rgba(239,68,68,0.8); }
+}
+
+.animate-float      { animation: float 3s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-slide-up   { animation: slide-up 0.3s ease-out forwards; }
+.animate-scale-in   { animation: scale-in 0.25s ease-out forwards; }
+.animate-uno-flash  { animation: uno-flash 0.8s ease-in-out 3; }
+
+/* ─── UNO Button ────────────────────────────────────────── */
+.uno-button {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  width: 80px;
+  height: 80px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 900;
+  font-size: 1.4rem;
+  color: white;
+  letter-spacing: -1px;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  box-shadow: 0 6px 20px rgba(239,68,68,0.4), inset 0 1px 0 rgba(255,255,255,0.3);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.uno-button:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 10px 40px rgba(239,68,68,0.7), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.uno-button:active:not(:disabled) { transform: scale(0.95); }
+.uno-button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ─── Game Table ────────────────────────────────────────── */
+.game-table {
+  background: radial-gradient(ellipse at center, #1a2e1a 0%, #0f1f0f 60%, #0a150a 100%);
+  border: 4px solid rgba(34,197,94,0.2);
+  box-shadow: 0 0 60px rgba(34,197,94,0.1), inset 0 0 80px rgba(0,0,0,0.5);
+}
+
+/* ─── Turn timer ────────────────────────────────────────── */
+.turn-timer-bar {
+  height: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #6366f1, #a855f7);
+  transition: width 1s linear;
+}
+.turn-timer-bar.urgent {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+  animation: pulse-glow 0.5s ease-in-out infinite;
+}
+
+/* ─── Components ────────────────────────────────────────── */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm
+           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[hsl(var(--surface-bg))]
+           disabled:opacity-50 disabled:cursor-not-allowed active:scale-95;
+  }
+  .btn-primary {
+    @apply btn bg-indigo-600 hover:bg-indigo-500 text-white focus:ring-indigo-500
+           shadow-lg shadow-indigo-500/25;
+  }
+  .btn-secondary {
+    @apply btn glass hover:bg-white/10 text-white border-white/10 focus:ring-white/30;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-500 text-white focus:ring-red-500;
+  }
+  .btn-success {
+    @apply btn bg-emerald-600 hover:bg-emerald-500 text-white focus:ring-emerald-500;
+  }
+  .btn-lg { @apply px-6 py-3.5 text-base rounded-2xl; }
+  .btn-sm { @apply px-3 py-1.5 text-xs rounded-lg; }
+
+  .input {
+    @apply w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30
+           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+           transition-all duration-150;
+  }
+
+  .card {
+    @apply glass rounded-2xl p-5 border border-white/8;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold;
+  }
+  .badge-primary { @apply badge bg-indigo-500/20 text-indigo-300 border border-indigo-500/30; }
+  .badge-success { @apply badge bg-emerald-500/20 text-emerald-300 border border-emerald-500/30; }
+  .badge-warning { @apply badge bg-amber-500/20 text-amber-300 border border-amber-500/30; }
+  .badge-danger  { @apply badge bg-red-500/20 text-red-300 border border-red-500/30; }
+
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full flex-shrink-0;
+  }
+  .status-online    { @apply status-dot bg-emerald-400 shadow-[0_0_6px_theme(colors.emerald.400)]; }
+  .status-offline   { @apply status-dot bg-gray-500; }
+  .status-in-game   { @apply status-dot bg-amber-400 shadow-[0_0_6px_theme(colors.amber.400)]; }
+  .status-away      { @apply status-dot bg-orange-400; }
+}
+
+/* ─── Gradient text ─────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Lobby cards ───────────────────────────────────────── */
+.room-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.room-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 0 20px rgba(99,102,241,0.1);
+}
+
+/* ─── Mobile hand scroll ────────────────────────────────── */
+.hand-container {
+  display: flex;
+  gap: -8px;
+  overflow-x: auto;
+  padding: 20px 16px 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.hand-container::-webkit-scrollbar { display: none; }
+.hand-container .uno-card { margin-left: -12px; }
+.hand-container .uno-card:first-child { margin-left: 0; }
+
+/* ─── Sidebar ───────────────────────────────────────────── */
+.sidebar-link {
+  @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-white/60
+         hover:text-white hover:bg-white/8 transition-all duration-150;
+}
+.sidebar-link.active {
+  @apply text-white bg-indigo-600/20 border border-indigo-500/30;
+}
+
+/* ─── Loading skeleton ──────────────────────────────────── */
+.skeleton {
+  @apply bg-white/8 animate-pulse rounded-xl;
+}
+
+/* ─── Notification dot ──────────────────────────────────── */
+.notif-dot::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  background: #ef4444;
+  border-radius: 50%;
+  border: 2px solid hsl(var(--surface-bg));
+  box-shadow: 0 0 8px rgba(239,68,68,0.6);
 }
