@@ -310,7 +310,10 @@ export function GameBoard({ gameId }: { gameId: number }) {
     timerRef.current = setInterval(() => {
       const remaining = Math.max(0, Math.floor((deadline - Date.now()) / 1000));
       setTurnTimeLeft(remaining);
-      if (remaining === 0 && timerRef.current) clearInterval(timerRef.current);
+      if (remaining === 0 && timerRef.current) {
+        clearInterval(timerRef.current);
+        gameApi.drawCard(gameId).then(r => setState(r.data.state)).catch(() => {});
+      }
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isMyTurn, state?.turn_started_at]);

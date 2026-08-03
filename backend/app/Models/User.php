@@ -146,7 +146,6 @@ class User extends Authenticatable implements MustVerifyEmail
     public function addXp(int $amount): void
     {
         $this->increment('xp', $amount);
-        $this->stats?->increment('xp', $amount);
 
         // Level up logic: level = floor(sqrt(xp / 100)) + 1
         $newLevel = (int) floor(sqrt($this->fresh()->xp / 100)) + 1;
