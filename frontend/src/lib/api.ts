@@ -1,13 +1,24 @@
 import axios from 'axios';
 
+const getBaseUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:8000/api/v1`;
+  }
+  return 'http://localhost:8000/api/v1';
+};
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  baseURL: getBaseUrl(),
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
   withCredentials: true,
 });
 
-// Request interceptor — attach token
+// Request interceptor — attach token and sync baseURL with current window host
 api.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_API_URL) {
+    config.baseURL = `http://${window.location.hostname}:8000/api/v1`;
+  }
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;

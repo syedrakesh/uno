@@ -18,19 +18,22 @@ export function getEcho(): Echo<any> {
   window.Pusher = Pusher;
 
   const token = localStorage.getItem('auth_token');
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const wsHost = process.env.NEXT_PUBLIC_PUSHER_HOST || currentHost;
+  const wsPort = parseInt(process.env.NEXT_PUBLIC_PUSHER_PORT || '8080');
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || `http://${currentHost}:8000/api/v1`;
 
   echoInstance = new Echo({
-    broadcaster: 'pusher',
-    key: process.env.NEXT_PUBLIC_PUSHER_KEY || 'uno-key',
-    cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER || 'mt1',
-    wsHost: process.env.NEXT_PUBLIC_PUSHER_HOST || 'localhost',
-    wsPort: parseInt(process.env.NEXT_PUBLIC_PUSHER_PORT || '6001'),
-    wssPort: parseInt(process.env.NEXT_PUBLIC_PUSHER_PORT || '6001'),
+    broadcaster: 'reverb',
+    key: process.env.NEXT_PUBLIC_PUSHER_KEY || 'owokg82oo2xpcqdr3cxr',
+    wsHost: wsHost,
+    wsPort: wsPort,
+    wssPort: wsPort,
     forceTLS: false,
     encrypted: false,
     disableStats: true,
     enabledTransports: ['ws', 'wss'],
-    authEndpoint: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/broadcasting/auth`,
+    authEndpoint: `${apiBase}/broadcasting/auth`,
     auth: {
       headers: {
         Authorization: `Bearer ${token}`,
