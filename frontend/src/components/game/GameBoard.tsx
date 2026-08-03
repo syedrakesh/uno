@@ -39,8 +39,9 @@ function CardComponent({ card, playable, selected, onClick }: {
 }
 
 // ─── Opponent Hand (face-down) ────────────────────────────────────
-function OpponentHand({ count, name, avatarUrl, isActive, calledUno }: {
+function OpponentHand({ count, name, avatarUrl, isActive, calledUno, isChallengeable, onCatch }: {
   count: number; name: string; avatarUrl?: string; isActive: boolean; calledUno: boolean;
+  isChallengeable?: boolean; onCatch?: () => void;
 }) {
   const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Player')}&background=6366f1&color=fff&size=128`;
   const [src, setSrc] = useState(avatarUrl || fallback);
@@ -71,6 +72,15 @@ function OpponentHand({ count, name, avatarUrl, isActive, calledUno }: {
         ))}
         {count > 7 && <span className="text-white/40 text-xs self-end ml-1">+{count - 7}</span>}
       </div>
+      {isChallengeable && (
+        <motion.button 
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          onClick={onCatch}
+          className="mt-2 bg-red-600 hover:bg-red-500 text-white text-xs font-black px-3 py-1.5 rounded-full shadow-[0_0_15px_rgba(220,38,38,0.6)] animate-pulse uppercase tracking-wider"
+        >
+          Catch UNO!
+        </motion.button>
+      )}
     </div>
   );
 }
@@ -266,6 +276,7 @@ export function GameBoard({ gameId }: { gameId: number }) {
     state, players, selectedCard, showColorPicker, gameEnded, winnerId,
     turnTimeLeft, setState, setPlayers, selectCard, setShowColorPicker,
     applyCardPlayed, applyTurnChanged, applyGameEnded, setTurnTimeLeft,
+    applyPlayerUnoAvailable, applyPlayerDeclaredUno, applyPlayerUnoCaught, applyPlayerDrawPenalty
   } = useGameStore();
 
   const isMyTurn = state?.current_player_id === user?.id;
@@ -298,6 +309,25 @@ export function GameBoard({ gameId }: { gameId: number }) {
       onCardPlayed:  applyCardPlayed,
       onTurnChanged: applyTurnChanged,
       onGameEnded:   applyGameEnded,
+      onPlayerUnoAvailable: (e) => {
+        applyPlayerUnoAvailable(e);
+      },
+      onPlayerDeclaredUno: (e) => {
+        applyPlayerDeclaredUno(e);
+        soundManager.playUnoCall();
+      },
+      onPlayerUnoCaught: (e) => {
+        applyPlayerUnoCaught(e);
+        soundManager.playCatch();
+      },
+      onPlayerDrawPenalty: (e) => {
+        applyPlayerDrawPenalty(e);
+        if (e.user_id === user?.id) {
+          soundManager.playPenalty();
+          toast.error('You were caught! +2 Cards');
+        }
+        setTimeout(() => gameApi.state(gameId).then(r => setState(r.data.state)), 500);
+      }
     });
     return cleanup;
   }, [gameId]);
@@ -385,8 +415,21 @@ export function GameBoard({ gameId }: { gameId: number }) {
   const handleUno = async () => {
     try {
       await gameApi.callUno(gameId);
+      soundManager.playUnoCall();
       toast.success('UNO! 🎉');
     } catch { toast.error('Cannot call UNO now'); }
+  };
+
+  const handleCatchUno = async (targetId: number) => {
+    try {
+      const res = await gameApi.challengeUno(gameId, { target_id: targetId });
+      if (res.data?.success) {
+        toast.success('Caught!');
+        soundManager.playCatch();
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to catch UNO');
+    }
   };
 
   // When a round finishes, poll game status to detect game over OR auto-start next round
@@ -483,13 +526,16 @@ export function GameBoard({ gameId }: { gameId: number }) {
         {opponents.map(p => {
           const playerName = p.user?.name || p.name || 'Player';
           const playerAvatar = p.user?.avatar_url || p.avatar_url;
+          const unoStatus = state?.uno_status?.[p.user_id];
           return (
             <OpponentHand key={p.user_id}
               count={typeof state?.hands?.[p.user_id] === 'number' ? state.hands[p.user_id] as number : 7}
               name={playerName}
               avatarUrl={playerAvatar}
               isActive={state?.current_player_id === p.user_id}
-              calledUno={p.called_uno} />
+              calledUno={unoStatus?.called_uno ?? p.called_uno}
+              isChallengeable={unoStatus?.is_challengeable}
+              onCatch={() => handleCatchUno(p.user_id)} />
           );
         })}
       </div>
@@ -571,13 +617,21 @@ export function GameBoard({ gameId }: { gameId: number }) {
       {/* My Hand */}
       <div className="space-y-3 pb-6 px-4">
         {/* UNO button + actions */}
-        <div className="flex items-center justify-center gap-4">
-          <button onClick={handleUno} disabled={myHand.length !== 1}
-            className="uno-button disabled:opacity-30">UNO!</button>
-
-          {myHand.length <= 2 && myHand.length > 0 && (
-            <div className="badge-warning badge animate-pulse">⚠️ Call UNO!</div>
-          )}
+        <div className="flex items-center justify-center gap-4 h-12">
+          <AnimatePresence>
+            {myHand.length === 1 && !(state?.uno_status?.[user?.id!]?.called_uno) && (
+              <motion.button 
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                onClick={handleUno}
+                className="uno-button animate-pulse"
+                style={{ transformOrigin: 'center' }}
+              >
+                UNO!
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Player hand */}
@@ -603,7 +657,7 @@ export function GameBoard({ gameId }: { gameId: number }) {
           />
           <span className="text-white/70 text-sm font-medium">{user?.name}</span>
           <span className="text-white/40 text-xs">{myHand.length} cards</span>
-          {myPlayer?.called_uno && <span className="badge-danger badge">UNO!</span>}
+          {state?.uno_status?.[user?.id!]?.called_uno && <span className="badge-danger badge">UNO Safe!</span>}
         </div>
       </div>
 

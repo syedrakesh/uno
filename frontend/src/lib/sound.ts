@@ -137,6 +137,20 @@ class SoundManager {
     this.playTone(880.00, 'triangle', 0.35, 0.12, 1.0);  // A5
   }
 
+  // Catch opponent successfully
+  public playCatch() {
+    if (this.muted) return;
+    this.playTone(700, 'square', 0.1, 0, 0.8);
+    this.playTone(900, 'square', 0.2, 0.1, 0.9);
+  }
+
+  // Receive penalty
+  public playPenalty() {
+    if (this.muted) return;
+    this.playTone(200, 'sawtooth', 0.2, 0, 0.7);
+    this.playTone(150, 'sawtooth', 0.3, 0.2, 0.8);
+  }
+
   // Round over sound
   public playRoundOver() {
     if (this.muted) return;

@@ -89,6 +89,10 @@ export function listenGame(gameId: number, callbacks: {
   onCardPlayed?: (data: any) => void;
   onTurnChanged?: (data: any) => void;
   onGameEnded?: (data: any) => void;
+  onPlayerUnoAvailable?: (data: any) => void;
+  onPlayerDeclaredUno?: (data: any) => void;
+  onPlayerUnoCaught?: (data: any) => void;
+  onPlayerDrawPenalty?: (data: any) => void;
 }) {
   const echo = getEcho();
   const channel = echo.private(`game.${gameId}`);
@@ -97,6 +101,10 @@ export function listenGame(gameId: number, callbacks: {
   if (callbacks.onCardPlayed) channel.listen('.game.card.played', callbacks.onCardPlayed);
   if (callbacks.onTurnChanged) channel.listen('.game.turn.changed', callbacks.onTurnChanged);
   if (callbacks.onGameEnded) channel.listen('.game.ended', callbacks.onGameEnded);
+  if (callbacks.onPlayerUnoAvailable) channel.listen('.player.uno_available', callbacks.onPlayerUnoAvailable);
+  if (callbacks.onPlayerDeclaredUno) channel.listen('.player.declared_uno', callbacks.onPlayerDeclaredUno);
+  if (callbacks.onPlayerUnoCaught) channel.listen('.player.uno_caught', callbacks.onPlayerUnoCaught);
+  if (callbacks.onPlayerDrawPenalty) channel.listen('.player.draw_penalty', callbacks.onPlayerDrawPenalty);
 
   return () => {
     echo.leave(`game.${gameId}`);

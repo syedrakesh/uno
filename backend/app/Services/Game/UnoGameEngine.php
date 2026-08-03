@@ -3,7 +3,7 @@
 namespace App\Services\Game;
 
 use App\Models\{Game, GamePlayer, Move, Room, Round, User};
-use App\Events\{GameStateUpdated, GameEnded, PlayerTurnChanged, CardPlayed};
+use App\Events\{GameStateUpdated, GameEnded, PlayerTurnChanged, CardPlayed, PlayerUnoAvailable, PlayerDeclaredUno, PlayerUnoCaught, PlayerDrawPenalty};
 use Illuminate\Support\Facades\{Cache, DB, Log};
 use Carbon\Carbon;
 
@@ -235,6 +235,14 @@ class UnoGameEngine
                 'turn_started_at'   => $roundEnded ? null : now(),
             ]);
 
+            // UNO state check
+            if (count($hands[$userId]) === 1) {
+                GamePlayer::where('game_id', $round->game_id)->where('user_id', $userId)->update(['called_uno' => false]);
+                Cache::put("uno_window:{$round->id}:{$userId}", now()->addSeconds(5)->timestamp, 15);
+                Cache::forget("uno_called:{$round->id}:{$userId}");
+                broadcast(new PlayerUnoAvailable($round, $userId))->toOthers();
+            }
+
             // Sync hand counts
             foreach ($hands as $uid => $hand) {
                 GamePlayer::where('game_id', $round->game_id)
@@ -309,6 +317,13 @@ class UnoGameEngine
                 'turn_started_at'   => now(),
             ]);
 
+            // Clear UNO state if player draws above 1
+            if (count($hands[$userId]) > 1) {
+                GamePlayer::where('game_id', $round->game_id)->where('user_id', $userId)->update(['called_uno' => false]);
+                Cache::forget("uno_window:{$round->id}:{$userId}");
+                Cache::forget("uno_called:{$round->id}:{$userId}");
+            }
+
             GamePlayer::where('game_id', $round->game_id)
                 ->where('user_id', $userId)
                 ->update(['cards_in_hand' => count($hands[$userId])]);
@@ -333,6 +348,9 @@ class UnoGameEngine
             ->where('user_id', $userId)
             ->update(['called_uno' => true]);
         Cache::put("uno_called:{$round->id}:{$userId}", true, 60);
+        
+        broadcast(new PlayerDeclaredUno($round, $userId))->toOthers();
+        
         return true;
     }
 
@@ -343,8 +361,10 @@ class UnoGameEngine
             $hands       = $round->hands;
             $targetHand  = $hands[$targetId] ?? [];
             $calledUno   = Cache::get("uno_called:{$round->id}:{$targetId}", false);
+            $windowEnds  = Cache::get("uno_window:{$round->id}:{$targetId}");
 
-            $success = count($targetHand) === 1 && !$calledUno;
+            $isWindowOpen = $windowEnds && now()->timestamp <= $windowEnds;
+            $success = count($targetHand) === 1 && !$calledUno && $isWindowOpen;
 
             if ($success) {
                 // Target must draw 2 as penalty
@@ -352,7 +372,12 @@ class UnoGameEngine
                 $hands[$targetId] = array_merge($targetHand, $drawn);
                 $round->update(['draw_pile' => $drawPile, 'discard_pile' => $discardPile, 'hands' => $hands]);
                 GamePlayer::where('game_id', $round->game_id)->where('user_id', $targetId)
-                    ->update(['cards_in_hand' => count($hands[$targetId])]);
+                    ->update(['cards_in_hand' => count($hands[$targetId]), 'called_uno' => false]);
+                
+                Cache::forget("uno_window:{$round->id}:{$targetId}");
+                
+                broadcast(new PlayerUnoCaught($round, $targetId, $challengerId))->toOthers();
+                broadcast(new PlayerDrawPenalty($round, $targetId, 2))->toOthers();
             }
 
             Move::create([
@@ -461,10 +486,21 @@ class UnoGameEngine
     {
         $hands = $round->hands ?? [];
         $publicHands = [];
+        $unoStatus = [];
+        
         foreach ($hands as $uid => $hand) {
             $publicHands[$uid] = (int)$uid === $viewingUserId
                 ? array_map(fn($id) => UnoCard::fromId($id)->toArray(), $hand)
                 : count($hand); // only count for others
+            
+            $calledUno = Cache::get("uno_called:{$round->id}:{$uid}", false);
+            $windowEnds = Cache::get("uno_window:{$round->id}:{$uid}");
+            $isChallengeable = count($hand) === 1 && !$calledUno && $windowEnds && now()->timestamp <= $windowEnds;
+            
+            $unoStatus[$uid] = [
+                'called_uno' => $calledUno,
+                'is_challengeable' => $isChallengeable,
+            ];
         }
 
         return [
@@ -480,6 +516,7 @@ class UnoGameEngine
             'pending_draw'      => $round->pending_draw,
             'draw_pile_count'   => count($round->draw_pile ?? []),
             'hands'             => $publicHands,
+            'uno_status'        => $unoStatus,
             'my_hand'           => array_map(fn($id) => UnoCard::fromId($id)->toArray(), $hands[$viewingUserId] ?? []),
             'turn_started_at'   => $round->turn_started_at?->toISOString(),
         ];

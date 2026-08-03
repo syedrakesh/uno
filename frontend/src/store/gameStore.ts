@@ -19,6 +19,7 @@ export interface GamePlayer {
   score: number;
   cards_in_hand: number;
   called_uno: boolean;
+  is_challengeable?: boolean;
   xp_earned: number;
 }
 
@@ -37,6 +38,7 @@ export interface GameState {
   my_hand: UnoCard[];
   turn_started_at: string | null;
   winner_id?: number | null;
+  uno_status?: Record<string, { called_uno: boolean; is_challengeable: boolean }>;
 }
 
 interface GameStore {
@@ -60,6 +62,10 @@ interface GameStore {
   applyCardPlayed: (e: { user_id: number; card_id: string }) => void;
   applyTurnChanged: (e: { next_player_id: number; turn_started_at: string }) => void;
   applyGameEnded: (e: { winner_id: number; players?: any[]; duration_seconds?: number }) => void;
+  applyPlayerUnoAvailable: (e: { user_id: number }) => void;
+  applyPlayerDeclaredUno: (e: { user_id: number }) => void;
+  applyPlayerUnoCaught: (e: { target_id: number; challenger_id: number }) => void;
+  applyPlayerDrawPenalty: (e: { user_id: number; amount: number }) => void;
   setTurnTimeLeft: (t: number) => void;
   reset: () => void;
 }
@@ -104,6 +110,48 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   applyGameEnded: (e) => set({ gameEnded: true, winnerId: e.winner_id, gameResult: { players: e.players ?? [], duration_seconds: e.duration_seconds ?? null } }),
+
+  applyPlayerUnoAvailable: (e) => {
+    // Handled by state updates, but could show a toast here if desired
+  },
+
+  applyPlayerDeclaredUno: (e) => {
+    const { state, players } = get();
+    if (!state) return;
+    set({
+      players: players.map(p => p.user_id === e.user_id ? { ...p, called_uno: true } : p),
+      state: {
+        ...state,
+        uno_status: {
+          ...state.uno_status,
+          [e.user_id]: { called_uno: true, is_challengeable: false }
+        }
+      }
+    });
+  },
+
+  applyPlayerUnoCaught: (e) => {
+    // Can play sound or toast here, hand update handled by PlayerDrawPenalty or state polling
+  },
+
+  applyPlayerDrawPenalty: (e) => {
+    const { state } = get();
+    if (!state) return;
+    const hands = { ...state.hands };
+    const prev = hands[e.user_id];
+    if (typeof prev === 'number') hands[e.user_id] = prev + e.amount;
+    
+    set({
+      state: {
+        ...state,
+        hands,
+        uno_status: {
+          ...state.uno_status,
+          [e.user_id]: { called_uno: false, is_challengeable: false }
+        }
+      }
+    });
+  },
 
   reset: () => set({
     gameId: null, roomCode: null, state: null, players: [],
