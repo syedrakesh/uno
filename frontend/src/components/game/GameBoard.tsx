@@ -7,6 +7,8 @@ import { gameApi } from '@/lib/api';
 import { listenGame } from '@/lib/echo';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
+import { soundManager } from '@/lib/sound';
+import { SoundControl } from '@/components/game/SoundControl';
 
 
 // ─── UNO Card Component ───────────────────────────────────────────
@@ -123,6 +125,14 @@ function GameOverScreen({ gameId }: { gameId: number }) {
     x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1200),
     delay: i * 0.04,
   })) : [];
+
+  useEffect(() => {
+    if (isWinner) {
+      soundManager.playVictory();
+    } else {
+      soundManager.playDefeat();
+    }
+  }, [isWinner]);
 
   const resultPlayers = gameResult?.players.length
     ? [...gameResult.players].sort((a, b) => (a.finish_position ?? 99) - (b.finish_position ?? 99))
@@ -305,6 +315,15 @@ export function GameBoard({ gameId }: { gameId: number }) {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [isMyTurn, state?.turn_started_at]);
 
+  // Turn sound alert
+  const prevIsMyTurn = useRef(false);
+  useEffect(() => {
+    if (isMyTurn && !prevIsMyTurn.current) {
+      soundManager.playTurnAlert();
+    }
+    prevIsMyTurn.current = isMyTurn;
+  }, [isMyTurn]);
+
   const myHand = state?.my_hand ?? [];
   const myPlayer = players.find(p => p.user_id === user?.id);
   const opponents = players.filter(p => p.user_id !== user?.id);
@@ -337,6 +356,11 @@ export function GameBoard({ gameId }: { gameId: number }) {
     setShowColorPicker(false);
     selectCard(null);
     try {
+      if (selectedCard?.value && ['skip', 'reverse', 'draw_two', 'wild_draw_four'].includes(selectedCard.value)) {
+        soundManager.playAction();
+      } else {
+        soundManager.playCard();
+      }
       const r = await gameApi.playCard(gameId, { card_id: cardId, chosen_color: chosenColor });
       setState(r.data.state);
       // If round finished with a winner_id, polling effect will detect game-over shortly
@@ -422,6 +446,11 @@ export function GameBoard({ gameId }: { gameId: number }) {
 
   return (
     <div className="flex flex-col min-h-dvh bg-[hsl(var(--surface-bg))] relative">
+      {/* Sound Control Header Button */}
+      <div className="absolute top-4 right-4 z-40">
+        <SoundControl />
+      </div>
+
       {roundFinishedOverlay}
 
       {/* Card Dealing Animation Overlay */}
