@@ -89,7 +89,7 @@ export const gameApi = {
   playCard: (gameId: number, d: { card_id: string; chosen_color?: string | null }) => api.post(`/games/${gameId}/play`, d),
   drawCard: (gameId: number) => api.post(`/games/${gameId}/draw`),
   callUno: (gameId: number) => api.post(`/games/${gameId}/uno`),
-  challengeUno: (gameId: number, targetUserId: number) => api.post(`/games/${gameId}/challenge-uno`, { target_user_id: targetUserId }),
+  challengeUno: (gameId: number, targetId: number) => api.post(`/games/${gameId}/challenge-uno`, { target_id: targetId }),
   challengeWildFour: (gameId: number) => api.post(`/games/${gameId}/challenge-w4`),
   history: (params?: any) => api.get('/games/history', { params }),
 };

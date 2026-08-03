@@ -422,7 +422,7 @@ export function GameBoard({ gameId }: { gameId: number }) {
 
   const handleCatchUno = async (targetId: number) => {
     try {
-      const res = await gameApi.challengeUno(gameId, { target_id: targetId });
+      const res = await gameApi.challengeUno(gameId, targetId);
       if (res.data?.success) {
         toast.success('Caught!');
         soundManager.playCatch();
