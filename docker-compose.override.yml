@@ -1,0 +1,19 @@
+version: '3.9'
+services:
+  # Replace beyondcode/laravel-websockets with Soketi
+  websockets:
+    image: quay.io/soketi/soketi:1.6-16-debian
+    environment:
+      SOKETI_DEFAULT_APP_ID: uno-app
+      SOKETI_DEFAULT_APP_KEY: uno-key
+      SOKETI_DEFAULT_APP_SECRET: uno-secret
+      SOKETI_DEBUG: "0"
+      SOKETI_METRICS_SERVER_PORT: "9601"
+    ports:
+      - "6001:6001"
+      - "9601:9601"
+    networks:
+      - uno_network
+    # Override the PHP-based websockets service
+    command: []
+    entrypoint: []
