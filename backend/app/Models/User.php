@@ -27,6 +27,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'password', 'remember_token',
     ];
 
+    protected $appends = [
+        'avatar_url', 'win_rate',
+    ];
+
     protected function casts(): array
     {
         return [

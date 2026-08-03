@@ -38,12 +38,24 @@ function CardComponent({ card, playable, selected, onClick }: {
 
 // ─── Opponent Hand (face-down) ────────────────────────────────────
 function OpponentHand({ count, name, avatarUrl, isActive, calledUno }: {
-  count: number; name: string; avatarUrl: string; isActive: boolean; calledUno: boolean;
+  count: number; name: string; avatarUrl?: string; isActive: boolean; calledUno: boolean;
 }) {
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'Player')}&background=6366f1&color=fff&size=128`;
+  const [src, setSrc] = useState(avatarUrl || fallback);
+
+  useEffect(() => {
+    setSrc(avatarUrl || fallback);
+  }, [avatarUrl, name]);
+
   return (
     <div className={`flex flex-col items-center gap-2 ${isActive ? 'scale-110' : 'opacity-70'} transition-all`}>
       <div className={`relative player-ring ${isActive ? 'active' : ''}`}>
-        <img src={avatarUrl} alt={name} className="w-12 h-12 rounded-full object-cover ring-2 ring-white/20" />
+        <img
+          src={src}
+          alt={name}
+          onError={() => setSrc(fallback)}
+          className="w-12 h-12 rounded-full object-cover ring-2 ring-white/20 shadow-md"
+        />
         {isActive && <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-gray-900 animate-pulse" />}
         {calledUno && (
           <div className="absolute -top-2 -right-2 bg-red-500 text-white text-[10px] font-black px-1 py-0.5 rounded-full animate-bounce">UNO!</div>
@@ -417,13 +429,18 @@ export function GameBoard({ gameId }: { gameId: number }) {
 
       {/* Opponents */}
       <div className="flex items-center justify-center gap-8 pt-6 px-6 flex-wrap">
-        {opponents.map(p => (
-          <OpponentHand key={p.user_id}
-            count={typeof state?.hands?.[p.user_id] === 'number' ? state.hands[p.user_id] as number : 7}
-            name={p.name} avatarUrl={p.avatar_url}
-            isActive={state?.current_player_id === p.user_id}
-            calledUno={p.called_uno} />
-        ))}
+        {opponents.map(p => {
+          const playerName = p.user?.name || p.name || 'Player';
+          const playerAvatar = p.user?.avatar_url || p.avatar_url;
+          return (
+            <OpponentHand key={p.user_id}
+              count={typeof state?.hands?.[p.user_id] === 'number' ? state.hands[p.user_id] as number : 7}
+              name={playerName}
+              avatarUrl={playerAvatar}
+              isActive={state?.current_player_id === p.user_id}
+              calledUno={p.called_uno} />
+          );
+        })}
       </div>
 
       {/* Game Table */}
@@ -525,7 +542,14 @@ export function GameBoard({ gameId }: { gameId: number }) {
 
         {/* My player info */}
         <div className="flex items-center justify-center gap-3">
-          <img src={user?.avatar_url} alt={user?.name} className="w-8 h-8 rounded-full" />
+          <img
+            src={user?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Player')}&background=6366f1&color=fff&size=128`}
+            alt={user?.name}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'Player')}&background=6366f1&color=fff&size=128`;
+            }}
+            className="w-8 h-8 rounded-full object-cover ring-2 ring-white/20"
+          />
           <span className="text-white/70 text-sm font-medium">{user?.name}</span>
           <span className="text-white/40 text-xs">{myHand.length} cards</span>
           {myPlayer?.called_uno && <span className="badge-danger badge">UNO!</span>}
