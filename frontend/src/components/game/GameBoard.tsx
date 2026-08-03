@@ -253,7 +253,27 @@ export function GameBoard({ gameId }: { gameId: number }) {
 
       {/* Game Table */}
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="game-table rounded-3xl w-full max-w-2xl aspect-video flex flex-col items-center justify-center gap-6 relative">
+        <div className="game-table rounded-3xl w-full max-w-2xl aspect-video flex flex-col items-center justify-center gap-6 relative overflow-hidden">
+          
+          {/* Action Overlay Animation */}
+          <AnimatePresence>
+            {state?.top_card && ['reverse', 'skip', 'draw_two', 'wild_draw_four'].includes(state.top_card.value) && (
+              <motion.div
+                key={`action-${state.top_card.id}`}
+                initial={{ scale: 0.5, opacity: 0, y: 50 }}
+                animate={{ scale: [1, 1.5, 1.2], opacity: [0, 1, 0], y: [0, -50, -100] }}
+                transition={{ duration: 1.5, times: [0, 0.4, 1], ease: 'easeOut' }}
+                className="absolute inset-0 pointer-events-none flex items-center justify-center z-40"
+              >
+                <span className={`text-8xl drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] font-black ${state.current_color === 'red' ? 'text-red-500' : state.current_color === 'blue' ? 'text-blue-500' : state.current_color === 'green' ? 'text-green-500' : state.current_color === 'yellow' ? 'text-yellow-400' : 'text-white'}`}>
+                  {state.top_card.value === 'reverse' ? '↻ REVERSE' :
+                   state.top_card.value === 'skip' ? '⊘ SKIP' :
+                   state.top_card.value === 'draw_two' ? '+2' :
+                   state.top_card.value === 'wild_draw_four' ? '+4' : ''}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Turn info */}
           <div className="absolute top-4 inset-x-4 space-y-2">
@@ -284,11 +304,11 @@ export function GameBoard({ gameId }: { gameId: number }) {
             {/* Top of discard */}
             <AnimatePresence mode="popLayout">
               {state?.top_card && (
-                <motion.div key={state.top_card.id} initial={{ scale: 0.5, rotate: -15, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} exit={{ scale: 0.3, opacity: 0 }} transition={{ type: 'spring', bounce: 0.4 }}>
+                <motion.div layoutId={state.top_card.id} key={state.top_card.id} initial={{ scale: 0.5, rotate: -15, opacity: 0 }} animate={{ scale: 1, rotate: 0, opacity: 1 }} exit={{ scale: 0.3, opacity: 0 }} transition={{ type: 'spring', bounce: 0.4 }}>
                   <div className={`uno-card ${state.current_color ?? state.top_card.color}`} style={{ pointerEvents: 'none' }}>
-                    <span className="card-corner top-left">{state.top_card.value}</span>
+                    <span className="card-corner top-left">{state.top_card.value === 'skip' ? '⊘' : state.top_card.value === 'reverse' ? '↻' : state.top_card.value === 'draw_two' ? '+2' : state.top_card.value === 'wild' ? '🌈' : state.top_card.value === 'wild_draw_four' ? '+4' : state.top_card.value}</span>
                     <span className="card-value">{state.top_card.value === 'skip' ? '⊘' : state.top_card.value === 'reverse' ? '↻' : state.top_card.value === 'draw_two' ? '+2' : state.top_card.value === 'wild' ? '🌈' : state.top_card.value === 'wild_draw_four' ? '+4' : state.top_card.value}</span>
-                    <span className="card-corner bot-right">{state.top_card.value}</span>
+                    <span className="card-corner bot-right">{state.top_card.value === 'skip' ? '⊘' : state.top_card.value === 'reverse' ? '↻' : state.top_card.value === 'draw_two' ? '+2' : state.top_card.value === 'wild' ? '🌈' : state.top_card.value === 'wild_draw_four' ? '+4' : state.top_card.value}</span>
                   </div>
                 </motion.div>
               )}
