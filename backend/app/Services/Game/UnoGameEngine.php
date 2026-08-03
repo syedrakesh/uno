@@ -110,6 +110,12 @@ class UnoGameEngine
             $this->assertPlayerTurn($round, $userId);
             $this->assertCardInHand($round, $userId, $cardId);
 
+            // Clear any UNO vulnerability from the previous player since a new turn is starting
+            $vulnerable = Cache::get("uno_vulnerable:{$round->id}");
+            if ($vulnerable !== null && $vulnerable !== $userId) {
+                Cache::forget("uno_vulnerable:{$round->id}");
+            }
+
             $game     = $round->game;
             $settings = $game->settings_snapshot ?? [];
             $card     = UnoCard::fromId($cardId);
@@ -238,7 +244,7 @@ class UnoGameEngine
             // UNO state check
             if (count($hands[$userId]) === 1) {
                 GamePlayer::where('game_id', $round->game_id)->where('user_id', $userId)->update(['called_uno' => false]);
-                Cache::put("uno_window:{$round->id}:{$userId}", now()->addSeconds(5)->timestamp, 15);
+                Cache::put("uno_vulnerable:{$round->id}", $userId, 3600);
                 Cache::forget("uno_called:{$round->id}:{$userId}");
                 broadcast(new PlayerUnoAvailable($round, $userId))->toOthers();
             }
@@ -272,6 +278,12 @@ class UnoGameEngine
     {
         return DB::transaction(function () use ($round, $userId) {
             $this->assertPlayerTurn($round, $userId);
+
+            // Clear any UNO vulnerability from the previous player since a new turn is starting
+            $vulnerable = Cache::get("uno_vulnerable:{$round->id}");
+            if ($vulnerable !== null && $vulnerable !== $userId) {
+                Cache::forget("uno_vulnerable:{$round->id}");
+            }
 
             $settings    = $round->game->settings_snapshot ?? [];
             $hands       = $round->hands;
@@ -320,7 +332,9 @@ class UnoGameEngine
             // Clear UNO state if player draws above 1
             if (count($hands[$userId]) > 1) {
                 GamePlayer::where('game_id', $round->game_id)->where('user_id', $userId)->update(['called_uno' => false]);
-                Cache::forget("uno_window:{$round->id}:{$userId}");
+                if (Cache::get("uno_vulnerable:{$round->id}") === $userId) {
+                    Cache::forget("uno_vulnerable:{$round->id}");
+                }
                 Cache::forget("uno_called:{$round->id}:{$userId}");
             }
 
@@ -347,7 +361,11 @@ class UnoGameEngine
         GamePlayer::where('game_id', $round->game_id)
             ->where('user_id', $userId)
             ->update(['called_uno' => true]);
-        Cache::put("uno_called:{$round->id}:{$userId}", true, 60);
+        Cache::put("uno_called:{$round->id}:{$userId}", true, 3600);
+        
+        if (Cache::get("uno_vulnerable:{$round->id}") === $userId) {
+            Cache::forget("uno_vulnerable:{$round->id}");
+        }
         
         broadcast(new PlayerDeclaredUno($round, $userId))->toOthers();
         
@@ -358,12 +376,16 @@ class UnoGameEngine
     public function challengeUno(Round $round, int $challengerId, int $targetId): array
     {
         return DB::transaction(function () use ($round, $challengerId, $targetId) {
+            if ($round->status !== 'active') {
+                return ['success' => false, 'state' => $this->getPublicState($round, $challengerId)];
+            }
+
             $hands       = $round->hands;
             $targetHand  = $hands[$targetId] ?? [];
             $calledUno   = Cache::get("uno_called:{$round->id}:{$targetId}", false);
-            $windowEnds  = Cache::get("uno_window:{$round->id}:{$targetId}");
+            $vulnerable  = Cache::get("uno_vulnerable:{$round->id}");
 
-            $isWindowOpen = $windowEnds && now()->timestamp <= $windowEnds;
+            $isWindowOpen = ($vulnerable === $targetId);
             $success = count($targetHand) === 1 && !$calledUno && $isWindowOpen;
 
             if ($success) {
@@ -374,7 +396,7 @@ class UnoGameEngine
                 GamePlayer::where('game_id', $round->game_id)->where('user_id', $targetId)
                     ->update(['cards_in_hand' => count($hands[$targetId]), 'called_uno' => false]);
                 
-                Cache::forget("uno_window:{$round->id}:{$targetId}");
+                Cache::forget("uno_vulnerable:{$round->id}");
                 
                 broadcast(new PlayerUnoCaught($round, $targetId, $challengerId))->toOthers();
                 broadcast(new PlayerDrawPenalty($round, $targetId, 2))->toOthers();
@@ -494,8 +516,8 @@ class UnoGameEngine
                 : count($hand); // only count for others
             
             $calledUno = Cache::get("uno_called:{$round->id}:{$uid}", false);
-            $windowEnds = Cache::get("uno_window:{$round->id}:{$uid}");
-            $isChallengeable = count($hand) === 1 && !$calledUno && $windowEnds && now()->timestamp <= $windowEnds;
+            $vulnerable = Cache::get("uno_vulnerable:{$round->id}");
+            $isChallengeable = count($hand) === 1 && !$calledUno && ($vulnerable === $uid);
             
             $unoStatus[$uid] = [
                 'called_uno' => $calledUno,
