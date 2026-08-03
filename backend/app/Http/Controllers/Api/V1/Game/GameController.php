@@ -40,10 +40,18 @@ class GameController extends Controller {
 
     public function state(Request $request, int $gameId): JsonResponse {
         $game  = Game::with(['players.user:id,name,username,avatar','currentRound'])->findOrFail($gameId);
-        $round = $game->currentRound;
-        if (!$round) return response()->json(['game'=>$game,'round'=>null]);
-        $state = $this->engine->getPublicState($round,$request->user()->id);
-        return response()->json(['game'=>$game,'state'=>$state]);
+        // Use latest round (active or finished) so polling works after game ends
+        $round = $game->currentRound ?? $game->rounds()->latest()->first();
+        $state = $round ? $this->engine->getPublicState($round, $request->user()->id) : null;
+        return response()->json([
+            'game'  => $game->only(['id','status','winner_id','duration_seconds','started_at','finished_at']),
+            'state' => $state,
+            'players' => $game->players->map(fn($p) => array_merge($p->toArray(), [
+                'name'       => $p->user?->name ?? 'Player',
+                'avatar_url' => $p->user?->avatar_url ?? null,
+                'user' => $p->user ? ['id' => $p->user->id, 'name' => $p->user->name, 'avatar_url' => $p->user->avatar_url] : null,
+            ])),
+        ]);
     }
 
     public function nextRound(Request $request, int $gameId): JsonResponse {

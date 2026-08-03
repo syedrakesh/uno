@@ -36,6 +36,7 @@ export interface GameState {
   hands: Record<string, UnoCard[] | number>;
   my_hand: UnoCard[];
   turn_started_at: string | null;
+  winner_id?: number | null;
 }
 
 interface GameStore {

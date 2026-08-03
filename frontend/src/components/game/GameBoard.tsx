@@ -268,7 +268,13 @@ export function GameBoard({ gameId }: { gameId: number }) {
     setDealing(true);
     gameApi.state(gameId).then(r => {
       setState(r.data.state);
-      setPlayers(r.data.game?.players ?? []);
+      // Use top-level players (with avatar_url resolved) or fall back to game.players
+      const playerList = r.data.players ?? r.data.game?.players ?? [];
+      setPlayers(playerList);
+      // If game already ended (e.g., rejoining a finished game), show game over screen
+      if (r.data.game?.status === 'finished' && r.data.game?.winner_id) {
+        applyGameEnded({ winner_id: r.data.game.winner_id });
+      }
       setTimeout(() => setDealing(false), 1400);
     }).catch(() => toast.error('Failed to load game state'));
   }, [gameId]);
@@ -333,15 +339,7 @@ export function GameBoard({ gameId }: { gameId: number }) {
     try {
       const r = await gameApi.playCard(gameId, { card_id: cardId, chosen_color: chosenColor });
       setState(r.data.state);
-      // If the game ended (we emptied our hand and crossed points threshold), trigger immediately
-      if (r.data.state?.status === 'finished') {
-        // Fetch full game state to get winner/scores
-        const full = await gameApi.state(gameId);
-        const game = full.data.game;
-        if (game?.status === 'finished' && game?.winner_id) {
-          applyGameEnded({ winner_id: game.winner_id });
-        }
-      }
+      // If round finished with a winner_id, polling effect will detect game-over shortly
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Invalid move');
     }
@@ -364,21 +362,42 @@ export function GameBoard({ gameId }: { gameId: number }) {
     } catch { toast.error('Cannot call UNO now'); }
   };
 
-  // Auto-start next round if current round is finished
+  // When a round finishes, poll game status to detect game over OR auto-start next round
   useEffect(() => {
-    if (state?.status === 'finished' && !gameEnded) {
-      const isHost = players.filter(p => p.type === 'human').sort((a, b) => a.seat - b.seat)[0]?.user_id === user?.id;
-      if (isHost) {
-        const timer = setTimeout(() => {
-          setDealing(true);
-          gameApi.nextRound(gameId).then(r => {
-            setState(r.data.state);
-            setTimeout(() => setDealing(false), 1400);
-          }).catch(() => toast.error('Failed to start next round'));
-        }, 5000);
-        return () => clearTimeout(timer);
-      }
+    if (state?.status !== 'finished' || gameEnded) return;
+
+    // Poll the game status to detect if endGame was called (game.status = 'finished')
+    const pollTimer = setInterval(async () => {
+      try {
+        const full = await gameApi.state(gameId);
+        const game = full.data.game;
+        if (game?.status === 'finished' && game?.winner_id) {
+          clearInterval(pollTimer);
+          applyGameEnded({ winner_id: game.winner_id });
+        }
+      } catch {}
+    }, 1500);
+
+    // Host auto-starts next round after 5 seconds (only if game not over)
+    const isHost = players.filter(p => p.type === 'human').sort((a, b) => a.seat - b.seat)[0]?.user_id === user?.id;
+    let roundTimer: NodeJS.Timeout | null = null;
+    if (isHost) {
+      roundTimer = setTimeout(async () => {
+        // Don't start new round if game ended in the meantime
+        const full = await gameApi.state(gameId).catch(() => null);
+        if (full?.data?.game?.status === 'finished') return;
+        setDealing(true);
+        gameApi.nextRound(gameId).then(r => {
+          setState(r.data.state);
+          setTimeout(() => setDealing(false), 1400);
+        }).catch(() => toast.error('Failed to start next round'));
+      }, 5000);
     }
+
+    return () => {
+      clearInterval(pollTimer);
+      if (roundTimer) clearTimeout(roundTimer);
+    };
   }, [state?.status, gameEnded, players, user?.id, gameId]);
 
   if (gameEnded) {

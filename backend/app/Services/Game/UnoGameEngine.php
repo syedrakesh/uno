@@ -472,6 +472,7 @@ class UnoGameEngine
             'game_id'           => $round->game_id,
             'round_number'      => $round->round_number,
             'status'            => $round->status,
+            'winner_id'         => $round->winner_id,
             'top_card'          => $round->top_card ? UnoCard::fromId($round->top_card)->toArray() : null,
             'current_color'     => $round->current_color,
             'direction'         => $round->direction,
@@ -568,12 +569,22 @@ class UnoGameEngine
         GamePlayer::where('game_id', $game->id)->where('user_id', $winnerId)
             ->increment('score', $score);
 
-        // Update cumulative game score; check if game winner threshold reached
+        // Refresh winner player record after increment
         $winnerPlayer = GamePlayer::where('game_id', $game->id)->where('user_id', $winnerId)->first();
         $settings     = $game->settings_snapshot ?? [];
         $pointsToWin  = $settings['points_to_win'] ?? 500;
+        $roundsToWin  = $settings['rounds_to_win'] ?? 1;
 
-        if ($winnerPlayer && $winnerPlayer->score >= $pointsToWin) {
+        // Count how many rounds this winner has won
+        $roundsWon = Round::where('game_id', $game->id)
+            ->where('winner_id', $winnerId)
+            ->where('status', 'finished')
+            ->count();
+
+        // End game if: enough rounds won OR points threshold reached
+        $gameOver = ($roundsWon >= $roundsToWin) || ($winnerPlayer && $winnerPlayer->score >= $pointsToWin);
+
+        if ($gameOver) {
             $this->endGame($game, $winnerId);
         } else {
             broadcast(new GameStateUpdated($round))->toOthers();
