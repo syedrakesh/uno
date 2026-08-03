@@ -60,26 +60,27 @@ export function disconnectEcho(): void {
   }
 }
 
-export function listenRoom(roomCode: string, callbacks: {
-  onPlayerJoined?: (data: any) => void;
-  onPlayerLeft?: (data: any) => void;
-  onPlayerReady?: (data: any) => void;
-  onSettingsUpdated?: (data: any) => void;
-  onGameStarted?: (data: any) => void;
-  onMessage?: (data: any) => void;
+export function listenRoom(roomId: number, callbacks: {
+  onUpdated?: (data: any) => void;
+  onChat?: (data: any) => void;
 }) {
   const echo = getEcho();
-  const channel = echo.private(`room.${roomCode}`);
+  const channel = echo.join(`room.${roomId}`);
 
-  if (callbacks.onPlayerJoined) channel.listen('.room.player.joined', callbacks.onPlayerJoined);
-  if (callbacks.onPlayerLeft) channel.listen('.room.player.left', callbacks.onPlayerLeft);
-  if (callbacks.onPlayerReady) channel.listen('.room.player.ready', callbacks.onPlayerReady);
-  if (callbacks.onSettingsUpdated) channel.listen('.room.settings.updated', callbacks.onSettingsUpdated);
-  if (callbacks.onGameStarted) channel.listen('.room.game.started', callbacks.onGameStarted);
-  if (callbacks.onMessage) channel.listen('.room.message.sent', callbacks.onMessage);
+  if (callbacks.onUpdated) {
+    channel.listen('.room.player_joined', callbacks.onUpdated);
+    channel.listen('.room.player_left', callbacks.onUpdated);
+    channel.listen('.room.player_ready', callbacks.onUpdated);
+    channel.listen('.room.settings_updated', callbacks.onUpdated);
+    channel.listen('.room.game_started', callbacks.onUpdated);
+  }
+  
+  if (callbacks.onChat) {
+    channel.listen('.chat.message', callbacks.onChat);
+  }
 
   return () => {
-    echo.leave(`room.${roomCode}`);
+    echo.leave(`room.${roomId}`);
   };
 }
 

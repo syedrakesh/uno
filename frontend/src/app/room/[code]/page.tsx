@@ -19,7 +19,7 @@ export default function RoomPage() {
   const [starting, setStarting] = useState(false);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  const isOwner = room?.owner_id === user?.id;
+  const isOwner = String(room?.owner_id) === String(user?.id);
   const myPlayer = room?.players?.find((p: any) => String(p.user_id) === String(user?.id));
 
   const loadRoom = async () => {
