@@ -85,6 +85,7 @@ export const roomApi = {
 export const gameApi = {
   start: (code: string) => api.post(`/rooms/${code}/start`),
   state: (gameId: number) => api.get(`/games/${gameId}/state`),
+  nextRound: (gameId: number) => api.post(`/games/${gameId}/next-round`),
   playCard: (gameId: number, d: any) => api.post(`/games/${gameId}/play`, d),
   drawCard: (gameId: number) => api.post(`/games/${gameId}/draw`),
   callUno: (gameId: number) => api.post(`/games/${gameId}/uno`),

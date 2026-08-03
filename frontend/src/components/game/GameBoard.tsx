@@ -194,6 +194,19 @@ export function GameBoard({ gameId }: { gameId: number }) {
     } catch { toast.error('Cannot call UNO now'); }
   };
 
+  // Auto-start next round if current round is finished
+  useEffect(() => {
+    if (state?.status === 'finished' && !gameEnded) {
+      const isHost = players.filter(p => p.type === 'human').sort((a, b) => a.seat - b.seat)[0]?.user_id === user?.id;
+      if (isHost) {
+        const timer = setTimeout(() => {
+          gameApi.nextRound(gameId).catch(() => toast.error('Failed to start next round'));
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [state?.status, gameEnded, players, user?.id, gameId]);
+
   if (gameEnded) {
     const winner = players.find(p => p.user_id === winnerId);
     return (
@@ -208,8 +221,25 @@ export function GameBoard({ gameId }: { gameId: number }) {
     );
   }
 
+  // Overlay for when a round finishes (but game is not over)
+  const roundFinishedOverlay = state?.status === 'finished' ? (
+    <div className="absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4">
+      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center space-y-6">
+        <h2 className="text-5xl font-black text-white">Round Over!</h2>
+        <p className="text-2xl text-white/80">
+          {players.find(p => p.user_id === state.winner_id)?.name} won the round.
+        </p>
+        <div className="flex flex-col items-center gap-2 pt-4">
+          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-indigo-300">Starting next round...</p>
+        </div>
+      </motion.div>
+    </div>
+  ) : null;
+
   return (
-    <div className="flex flex-col min-h-dvh bg-[hsl(var(--surface-bg))]">
+    <div className="flex flex-col min-h-dvh bg-[hsl(var(--surface-bg))] relative">
+      {roundFinishedOverlay}
       {/* Opponents */}
       <div className="flex items-center justify-center gap-8 pt-6 px-6 flex-wrap">
         {opponents.map(p => (

@@ -46,6 +46,22 @@ class GameController extends Controller {
         return response()->json(['game'=>$game,'state'=>$state]);
     }
 
+    public function nextRound(Request $request, int $gameId): JsonResponse {
+        $game = Game::with('currentRound')->findOrFail($gameId);
+        
+        // Prevent starting if game is finished or round is still active
+        if ($game->status === 'finished') return response()->json(['message'=>'Game is already over.'], 422);
+        if ($game->currentRound && $game->currentRound->status === 'active') return response()->json(['message'=>'Current round is still active.'], 422);
+
+        $nextRoundNumber = $game->currentRound ? $game->currentRound->round_number + 1 : 1;
+        $round = $this->engine->startRound($game, $nextRoundNumber);
+        
+        broadcast(new \App\Events\GameStateUpdated($round))->toOthers();
+        
+        $state = $this->engine->getPublicState($round, $request->user()->id);
+        return response()->json(['state'=>$state, 'message'=>'Next round started.']);
+    }
+
     public function playCard(Request $request, int $gameId): JsonResponse {
         $data  = $request->validate(['card_id'=>'required|string','chosen_color'=>'nullable|in:red,green,blue,yellow']);
         $game  = Game::findOrFail($gameId);

@@ -85,6 +85,7 @@ Route::prefix('v1')->group(function () {
         // Game
         Route::post('rooms/{code}/start',           [GameController::class, 'start']);
         Route::get('games/{gameId}/state',          [GameController::class, 'state']);
+        Route::post('games/{gameId}/next-round',    [GameController::class, 'nextRound']);
         Route::post('games/{gameId}/play',          [GameController::class, 'playCard']);
         Route::post('games/{gameId}/draw',          [GameController::class, 'drawCard']);
         Route::post('games/{gameId}/uno',           [GameController::class, 'callUno']);
