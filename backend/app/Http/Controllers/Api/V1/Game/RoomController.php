@@ -81,18 +81,22 @@ class RoomController extends Controller {
         if ($room->isPasswordProtected() && !Hash::check($data['password']??'',$room->password))
             return response()->json(['message'=>'Incorrect room password.'],403);
 
+        $existing = RoomPlayer::where('room_id',$room->id)->where('user_id',$user->id)->first();
+        if ($existing) {
+            $existing->update(['is_connected'=>true,'disconnected_at'=>null]);
+            $room->update(['last_activity_at'=>now()]);
+            broadcast(new RoomUpdated($room,'player_joined',['user_id'=>$user->id]))->toOthers();
+            return response()->json(['room'=>$room->fresh()->load(['owner','players.user']),'message'=>'Rejoined room.']);
+        }
+
         $role = $data['role']??'player';
         if ($role==='player' && $room->isFull())
             return response()->json(['message'=>'Room is full.'],422);
 
-        $existing = RoomPlayer::where('room_id',$room->id)->where('user_id',$user->id)->first();
-        if ($existing) {
-            $existing->update(['is_connected'=>true,'disconnected_at'=>null]);
-        } else {
-            $seat = RoomPlayer::where('room_id',$room->id)->max('seat') + 1;
-            RoomPlayer::create(['room_id'=>$room->id,'user_id'=>$user->id,'role'=>$role,'seat'=>$seat]);
-        }
+        $seat = RoomPlayer::where('room_id',$room->id)->max('seat') + 1;
+        RoomPlayer::create(['room_id'=>$room->id,'user_id'=>$user->id,'role'=>$role,'seat'=>$seat]);
         $room->update(['last_activity_at'=>now()]);
+
         broadcast(new RoomUpdated($room,'player_joined',['user_id'=>$user->id]))->toOthers();
         return response()->json(['room'=>$room->fresh()->load(['owner','players.user']),'message'=>'Joined room.']);
     }

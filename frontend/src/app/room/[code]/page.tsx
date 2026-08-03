@@ -20,17 +20,17 @@ export default function RoomPage() {
   const chatRef = useRef<HTMLDivElement>(null);
 
   const isOwner = room?.owner_id === user?.id;
-  const myPlayer = room?.players?.find((p: any) => p.user_id === user?.id);
+  const myPlayer = room?.players?.find((p: any) => String(p.user_id) === String(user?.id));
 
   const loadRoom = async () => {
     try {
-      let r = await roomApi.get(code);
+      let r = await roomApi.show(code);
       
       // Auto-join if not in the room
-      if (user && !r.data.room.players.some((p: any) => p.user_id === user.id)) {
+      if (user && !r.data.room.players.some((p: any) => String(p.user_id) === String(user.id))) {
         try {
           await roomApi.join(code);
-          r = await roomApi.get(code); // reload with me in it
+          r = await roomApi.show(code); // reload with me in it
         } catch (joinErr: any) {
           toast.error(joinErr.response?.data?.message || 'Failed to join room');
           router.push('/lobby');
@@ -39,7 +39,7 @@ export default function RoomPage() {
       }
       
       setRoom(r.data.room);
-      const c = await roomApi.chat(code);
+      const c = await roomApi.messages(code);
       setMessages((c.data.data ?? []).reverse());
     } catch { toast.error('Room not found'); router.push('/lobby'); }
     setLoading(false);
@@ -66,17 +66,17 @@ export default function RoomPage() {
     if (!chatInput.trim()) return;
     const msg = chatInput.trim();
     setChatInput('');
-    try { await roomApi.sendChat(code, { message: msg }); } catch { toast.error('Failed to send'); }
+    try { await roomApi.sendMessage(code, msg); } catch { toast.error('Failed to send'); }
   };
 
   const toggleReady = async () => {
-    try { await roomApi.ready(code); loadRoom(); } catch { toast.error('Error'); }
+    try { await roomApi.toggleReady(code); loadRoom(); } catch { toast.error('Error'); }
   };
 
   const startGame = async () => {
     setStarting(true);
     try { 
-      const res = await gameApi.start(code); 
+      const res = await roomApi.startGame(code); 
       if (res.data?.game?.id) {
         router.push(`/game/${res.data.game.id}`);
       }
@@ -129,7 +129,7 @@ export default function RoomPage() {
                     </div>
                     <p className="font-semibold text-white text-sm truncate max-w-full px-2">{p.user?.name}</p>
                     <span className={`badge ${p.is_ready?'badge-success':'badge-warning'}`}>{p.is_ready?'✓ Ready':'Waiting…'}</span>
-                    {isOwner && p.user_id!==user?.id && (
+                    {isOwner && String(p.user_id)!==String(user?.id) && (
                       <button onClick={()=>roomApi.kick(code,p.user_id).then(loadRoom)} className="text-xs text-red-400 hover:text-red-300">kick</button>
                     )}
                   </>

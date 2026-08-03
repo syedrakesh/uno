@@ -18,10 +18,18 @@ export function getEcho(): Echo<any> {
   window.Pusher = Pusher;
 
   const token = localStorage.getItem('auth_token');
-  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-  const wsHost = process.env.NEXT_PUBLIC_PUSHER_HOST || currentHost;
+  const currentHost = window.location.hostname;
+
+  let wsHost = process.env.NEXT_PUBLIC_PUSHER_HOST || currentHost;
+  if (currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+    wsHost = currentHost;
+  }
+
   const wsPort = parseInt(process.env.NEXT_PUBLIC_PUSHER_PORT || '8080');
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || `http://${currentHost}:8000/api/v1`;
+  let apiBase = process.env.NEXT_PUBLIC_API_URL || `http://${currentHost}:8000/api/v1`;
+  if (currentHost !== 'localhost' && currentHost !== '127.0.0.1') {
+    apiBase = apiBase.replace('localhost', currentHost).replace('127.0.0.1', currentHost);
+  }
 
   echoInstance = new Echo({
     broadcaster: 'reverb',
@@ -46,49 +54,50 @@ export function getEcho(): Echo<any> {
 }
 
 export function disconnectEcho(): void {
-  echoInstance?.disconnect();
-  echoInstance = null;
+  if (echoInstance) {
+    echoInstance.disconnect();
+    echoInstance = null;
+  }
 }
 
-// ── Channel helpers ───────────────────────────────────────
-export function listenRoom(
-  roomId: number,
-  callbacks: { onUpdated?: (e: any) => void; onChat?: (e: any) => void; onPresence?: (members: any) => void }
-) {
+export function listenRoom(roomCode: string, callbacks: {
+  onPlayerJoined?: (data: any) => void;
+  onPlayerLeft?: (data: any) => void;
+  onPlayerReady?: (data: any) => void;
+  onSettingsUpdated?: (data: any) => void;
+  onGameStarted?: (data: any) => void;
+  onMessage?: (data: any) => void;
+}) {
   const echo = getEcho();
-  const channel = echo.join(`room.${roomId}`);
+  const channel = echo.private(`room.${roomCode}`);
 
-  if (callbacks.onPresence) {
-    channel.here(callbacks.onPresence).joining((m: any) => { }).leaving((m: any) => { });
-  }
-  if (callbacks.onUpdated) channel.listen('.room.updated', callbacks.onUpdated).listen('.room.created', callbacks.onUpdated).listen('.room.player_joined', callbacks.onUpdated).listen('.room.player_left', callbacks.onUpdated).listen('.room.player_ready', callbacks.onUpdated).listen('.room.game_started', callbacks.onUpdated).listen('.room.settings_updated', callbacks.onUpdated).listen('.room.ownership_transferred', callbacks.onUpdated).listen('.room.player_kicked', callbacks.onUpdated).listen('.room.player_banned', callbacks.onUpdated);
-  if (callbacks.onChat) channel.listen('.chat.message', callbacks.onChat);
+  if (callbacks.onPlayerJoined) channel.listen('.room.player.joined', callbacks.onPlayerJoined);
+  if (callbacks.onPlayerLeft) channel.listen('.room.player.left', callbacks.onPlayerLeft);
+  if (callbacks.onPlayerReady) channel.listen('.room.player.ready', callbacks.onPlayerReady);
+  if (callbacks.onSettingsUpdated) channel.listen('.room.settings.updated', callbacks.onSettingsUpdated);
+  if (callbacks.onGameStarted) channel.listen('.room.game.started', callbacks.onGameStarted);
+  if (callbacks.onMessage) channel.listen('.room.message.sent', callbacks.onMessage);
 
-  return () => echo.leave(`room.${roomId}`);
+  return () => {
+    echo.leave(`room.${roomCode}`);
+  };
 }
 
-export function listenGame(
-  gameId: number,
-  callbacks: {
-    onStateUpdated?: (e: any) => void;
-    onCardPlayed?: (e: any) => void;
-    onTurnChanged?: (e: any) => void;
-    onGameEnded?: (e: any) => void;
-  }
-) {
+export function listenGame(gameId: number, callbacks: {
+  onStateUpdated?: (data: any) => void;
+  onCardPlayed?: (data: any) => void;
+  onTurnChanged?: (data: any) => void;
+  onGameEnded?: (data: any) => void;
+}) {
   const echo = getEcho();
   const channel = echo.private(`game.${gameId}`);
 
   if (callbacks.onStateUpdated) channel.listen('.game.state.updated', callbacks.onStateUpdated);
-  if (callbacks.onCardPlayed) channel.listen('.card.played', callbacks.onCardPlayed);
-  if (callbacks.onTurnChanged) channel.listen('.turn.changed', callbacks.onTurnChanged);
+  if (callbacks.onCardPlayed) channel.listen('.game.card.played', callbacks.onCardPlayed);
+  if (callbacks.onTurnChanged) channel.listen('.game.turn.changed', callbacks.onTurnChanged);
   if (callbacks.onGameEnded) channel.listen('.game.ended', callbacks.onGameEnded);
 
-  return () => echo.leave(`game.${gameId}`);
-}
-
-export function listenUserNotifications(userId: number, onNotification: (e: any) => void) {
-  const echo = getEcho();
-  echo.private(`user.${userId}`).notification(onNotification);
-  return () => echo.leave(`user.${userId}`);
+  return () => {
+    echo.leave(`game.${gameId}`);
+  };
 }

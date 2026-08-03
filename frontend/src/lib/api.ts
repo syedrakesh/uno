@@ -1,11 +1,11 @@
 import axios from 'axios';
 
 const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-  if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:8000/api/v1`;
+  let url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    url = url.replace('localhost', window.location.hostname).replace('127.0.0.1', window.location.hostname);
   }
-  return 'http://localhost:8000/api/v1';
+  return url;
 };
 
 const api = axios.create({
@@ -14,10 +14,12 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Request interceptor — attach token and sync baseURL with current window host
+// Request interceptor — attach token and dynamically adapt host for local LAN devices
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined' && !process.env.NEXT_PUBLIC_API_URL) {
-    config.baseURL = `http://${window.location.hostname}:8000/api/v1`;
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (config.baseURL) {
+      config.baseURL = config.baseURL.replace('localhost', window.location.hostname).replace('127.0.0.1', window.location.hostname);
+    }
   }
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -64,67 +66,60 @@ export const userApi = {
   uploadAvatar: (form: FormData) => api.post('/me/avatar', form, { headers: { 'Content-Type': 'multipart/form-data' } }),
   changePassword: (d: any) => api.post('/me/password', d),
   myStats: () => api.get('/me/stats'),
-  claimDailyReward: () => api.post('/me/daily-reward'),
-  leaderboard: (type = 'xp') => api.get('/leaderboard', { params: { type } }),
+};
+
+// ── Rooms ─────────────────────────────────────────────────
+export const roomApi = {
+  list: (params?: any) => api.get('/rooms', { params }),
+  create: (d: any) => api.post('/rooms', d),
+  show: (code: string) => api.get(`/rooms/${code}`),
+  join: (code: string, password?: string) => api.post(`/rooms/${code}/join`, { password }),
+  leave: (code: string) => api.post(`/rooms/${code}/leave`),
+  kick: (code: string, userId: number) => api.delete(`/rooms/${code}/kick/${userId}`),
+  toggleReady: (code: string) => api.post(`/rooms/${code}/ready`),
+  updateSettings: (code: string, settings: any) => api.patch(`/rooms/${code}/settings`, settings),
+  startGame: (code: string) => api.post(`/rooms/${code}/start`),
+  messages: (code: string) => api.get(`/rooms/${code}/chat`),
+  sendMessage: (code: string, message: string) => api.post(`/rooms/${code}/chat`, { message }),
+};
+
+// ── Game ──────────────────────────────────────────────────
+export const gameApi = {
+  state: (gameId: number) => api.get(`/games/${gameId}/state`),
+  playCard: (gameId: number, d: { card_id: string; chosen_color?: string | null }) => api.post(`/games/${gameId}/play`, d),
+  drawCard: (gameId: number) => api.post(`/games/${gameId}/draw`),
+  callUno: (gameId: number) => api.post(`/games/${gameId}/uno`),
+  challengeUno: (gameId: number, targetUserId: number) => api.post(`/games/${gameId}/challenge-uno`, { target_user_id: targetUserId }),
+  challengeWildFour: (gameId: number) => api.post(`/games/${gameId}/challenge-w4`),
+  history: (params?: any) => api.get('/games/history', { params }),
+};
+
+// ── Notifications ─────────────────────────────────────────
+export const notifApi = {
+  list: (params?: any) => api.get('/notifications', { params }),
+  unreadCount: () => api.get('/notifications/unread-count'),
+  markAsRead: (id: number) => api.post(`/notifications/${id}/read`),
+  markAllAsRead: () => api.post('/notifications/read-all'),
 };
 
 // ── Friends ───────────────────────────────────────────────
 export const friendApi = {
   list: () => api.get('/friends'),
   requests: () => api.get('/friends/requests'),
-  send: (userId: number) => api.post(`/friends/${userId}`),
-  accept: (id: number) => api.post(`/friends/requests/${id}/accept`),
-  decline: (id: number) => api.post(`/friends/requests/${id}/decline`),
-  remove: (userId: number) => api.delete(`/friends/${userId}`),
-  invite: (userId: number, roomCode: string) => api.post(`/friends/${userId}/invite`, { room_code: roomCode }),
+  sendRequest: (userId: number) => api.post(`/friends/request/${userId}`),
+  acceptRequest: (requestId: number) => api.post(`/friends/accept/${requestId}`),
+  rejectRequest: (requestId: number) => api.post(`/friends/reject/${requestId}`),
+  removeFriend: (friendId: number) => api.delete(`/friends/${friendId}`),
 };
 
-// ── Rooms ─────────────────────────────────────────────────
-export const roomApi = {
-  list: (params?: any) => api.get('/rooms', { params }),
-  get: (code: string) => api.get(`/rooms/${code}`),
-  create: (d: any) => api.post('/rooms', d),
-  join: (code: string, d?: any) => api.post(`/rooms/${code}/join`, d),
-  leave: (code: string) => api.post(`/rooms/${code}/leave`),
-  ready: (code: string) => api.post(`/rooms/${code}/ready`),
-  kick: (code: string, uid: number) => api.delete(`/rooms/${code}/kick/${uid}`),
-  ban: (code: string, uid: number, reason?: string) => api.post(`/rooms/${code}/ban/${uid}`, { reason }),
-  transfer: (code: string, uid: number) => api.post(`/rooms/${code}/transfer/${uid}`),
-  settings: (code: string, d: any) => api.patch(`/rooms/${code}/settings`, d),
-  chat: (code: string) => api.get(`/rooms/${code}/chat`),
-  sendChat: (code: string, d: any) => api.post(`/rooms/${code}/chat`, d),
-};
-
-// ── Game ──────────────────────────────────────────────────
-export const gameApi = {
-  start: (code: string) => api.post(`/rooms/${code}/start`),
-  state: (gameId: number) => api.get(`/games/${gameId}/state`),
-  nextRound: (gameId: number) => api.post(`/games/${gameId}/next-round`),
-  playCard: (gameId: number, d: any) => api.post(`/games/${gameId}/play`, d),
-  drawCard: (gameId: number) => api.post(`/games/${gameId}/draw`),
-  callUno: (gameId: number) => api.post(`/games/${gameId}/uno`),
-  challengeUno: (gameId: number, targetId: number) => api.post(`/games/${gameId}/challenge-uno`, { target_id: targetId }),
-  challengeW4: (gameId: number, targetId: number) => api.post(`/games/${gameId}/challenge-w4`, { target_id: targetId }),
-  history: () => api.get('/games/history'),
-};
-
-// ── Notifications ─────────────────────────────────────────
-export const notifApi = {
-  list: () => api.get('/notifications'),
-  unreadCount: () => api.get('/notifications/unread-count'),
-  markRead: (id: number) => api.patch(`/notifications/${id}/read`),
-  markAllRead: () => api.post('/notifications/read-all'),
+// ── Leaderboard ───────────────────────────────────────────
+export const leaderboardApi = {
+  get: (type: 'xp' | 'wins' | 'win_streak' = 'xp', limit = 50) => api.get('/leaderboard', { params: { type, limit } }),
 };
 
 // ── Admin ─────────────────────────────────────────────────
 export const adminApi = {
-  dashboard: () => api.get('/admin/dashboard'),
-  users: (p?: any) => api.get('/admin/users', { params: p }),
-  banUser: (id: number, d: any) => api.post(`/admin/users/${id}/ban`, d),
-  unbanUser: (id: number) => api.delete(`/admin/users/${id}/ban`),
-  rooms: (p?: any) => api.get('/admin/rooms', { params: p }),
-  closeRoom: (id: number) => api.delete(`/admin/rooms/${id}`),
-  reports: (p?: any) => api.get('/admin/reports', { params: p }),
-  resolveReport: (id: number, d: any) => api.patch(`/admin/reports/${id}`, d),
   stats: () => api.get('/admin/stats'),
+  users: (params?: any) => api.get('/admin/users', { params }),
+  games: (params?: any) => api.get('/admin/games', { params }),
 };
