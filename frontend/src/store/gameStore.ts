@@ -49,6 +49,7 @@ interface GameStore {
   gameEnded: boolean;
   winnerId: number | null;
   turnTimeLeft: number;
+  gameResult: { players: any[]; duration_seconds: number | null } | null;
 
   setState: (s: GameState) => void;
   setPlayers: (p: GamePlayer[]) => void;
@@ -57,7 +58,7 @@ interface GameStore {
   setShowColorPicker: (v: boolean) => void;
   applyCardPlayed: (e: { user_id: number; card_id: string }) => void;
   applyTurnChanged: (e: { next_player_id: number; turn_started_at: string }) => void;
-  applyGameEnded: (e: { winner_id: number }) => void;
+  applyGameEnded: (e: { winner_id: number; players?: any[]; duration_seconds?: number }) => void;
   setTurnTimeLeft: (t: number) => void;
   reset: () => void;
 }
@@ -73,6 +74,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   gameEnded: false,
   winnerId: null,
   turnTimeLeft: 30,
+  gameResult: null,
 
   setState: (s) => set({ state: s }),
   setPlayers: (p) => set({ players: p }),
@@ -100,11 +102,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  applyGameEnded: (e) => set({ gameEnded: true, winnerId: e.winner_id }),
+  applyGameEnded: (e) => set({ gameEnded: true, winnerId: e.winner_id, gameResult: { players: e.players ?? [], duration_seconds: e.duration_seconds ?? null } }),
 
   reset: () => set({
     gameId: null, roomCode: null, state: null, players: [],
     selectedCard: null, isMyTurn: false, showColorPicker: false,
-    gameEnded: false, winnerId: null, turnTimeLeft: 30,
+    gameEnded: false, winnerId: null, turnTimeLeft: 30, gameResult: null,
   }),
 }));

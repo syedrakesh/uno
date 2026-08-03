@@ -597,7 +597,7 @@ class UnoGameEngine
         // Award XP, update stats
         $this->awardXpAndStats($game, $winnerId);
 
-        broadcast(new GameEnded($game, $winnerId))->toOthers();
+        broadcast(new GameEnded($game->fresh(), $winnerId));
     }
 
     private function awardXpAndStats(Game $game, int $winnerId): void

@@ -1,7 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,8 +18,17 @@ type Form = z.infer<typeof schema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, guestLogin, isLoading } = useAuthStore();
+  const [guestLoading, setGuestLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<Form>({ resolver: zodResolver(schema) });
+
+  // Auto-trigger guest login if ?guest=1
+  useEffect(() => {
+    if (searchParams.get('guest') === '1') {
+      handleGuest();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSubmit = async (data: Form) => {
     try {
@@ -32,12 +41,14 @@ export default function LoginPage() {
   };
 
   const handleGuest = async () => {
+    setGuestLoading(true);
     try {
       await guestLogin();
-      toast.success('Joined as guest!');
+      toast.success('Joined as guest! 👤');
       router.push('/dashboard');
-    } catch { toast.error('Failed to join as guest'); }
+    } catch { toast.error('Failed to join as guest'); setGuestLoading(false); }
   };
+
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md mx-4">
@@ -86,8 +97,9 @@ export default function LoginPage() {
           </a>
         </div>
 
-        <button onClick={handleGuest} className="w-full text-center text-sm text-white/40 hover:text-white/70 transition-colors">
-          Continue as Guest →
+        <button onClick={handleGuest} disabled={guestLoading || isLoading}
+          className="w-full py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white font-semibold text-sm transition-all flex items-center justify-center gap-2">
+          {guestLoading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Joining...</> : '👤 Play as Guest (No Account Needed)'}
         </button>
 
         <p className="text-center text-sm text-white/40">

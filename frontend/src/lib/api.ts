@@ -18,7 +18,10 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      if (typeof window !== 'undefined') {
+      const url = err.config?.url ?? '';
+      // Don't redirect on auth bootstrap calls
+      const isAuthCall = url.includes('/auth/me') || url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/guest');
+      if (!isAuthCall && typeof window !== 'undefined') {
         localStorage.removeItem('auth_token');
         window.location.href = '/login';
       }

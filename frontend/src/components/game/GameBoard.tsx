@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore, UnoCard } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { gameApi } from '@/lib/api';
 import { listenGame } from '@/lib/echo';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
+
 
 // ─── UNO Card Component ───────────────────────────────────────────
 function CardComponent({ card, playable, selected, onClick }: {
@@ -80,6 +82,149 @@ function ColorPicker({ onSelect }: { onSelect: (c: string) => void }) {
   );
 }
 
+// ─── Confetti Particle ────────────────────────────────────────────
+function ConfettiParticle({ color, x, delay }: { color: string; x: number; delay: number }) {
+  const size = Math.random() * 10 + 6;
+  return (
+    <motion.div
+      initial={{ y: -20, x, opacity: 1, rotate: 0, scale: 1 }}
+      animate={{ y: '110vh', rotate: Math.random() * 720 - 360, opacity: [1, 1, 0], scale: [1, 0.8, 0.3] }}
+      transition={{ duration: Math.random() * 3 + 2, delay, ease: 'easeIn' }}
+      className="fixed pointer-events-none z-[100]"
+      style={{ width: size, height: size, background: color, borderRadius: Math.random() > 0.5 ? '50%' : '2px', top: 0 }}
+    />
+  );
+}
+
+// ─── Game Over Screen ─────────────────────────────────────────────
+function GameOverScreen({ gameId }: { gameId: number }) {
+  const router = useRouter();
+  const { user } = useAuthStore();
+  const { winnerId, gameResult, players, reset } = useGameStore();
+  const isWinner = winnerId === user?.id;
+  const winner = gameResult?.players.find((p: any) => p.user_id === winnerId) ?? players.find(p => p.user_id === winnerId);
+  const myResult = gameResult?.players.find((p: any) => p.user_id === user?.id);
+
+  const confettiColors = ['#f59e0b','#6366f1','#10b981','#ef4444','#3b82f6','#ec4899','#f97316','#a855f7'];
+  const confettiItems = isWinner ? Array.from({ length: 80 }).map((_, i) => ({
+    color: confettiColors[i % confettiColors.length],
+    x: Math.random() * (typeof window !== 'undefined' ? window.innerWidth : 1200),
+    delay: i * 0.04,
+  })) : [];
+
+  const resultPlayers = gameResult?.players.length
+    ? [...gameResult.players].sort((a, b) => (a.finish_position ?? 99) - (b.finish_position ?? 99))
+    : players;
+
+  const formatDuration = (sec: number | null) => {
+    if (!sec) return '—';
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return `${m}m ${s}s`;
+  };
+
+  const handlePlayAgain = async () => {
+    try {
+      const state = useGameStore.getState();
+      if (state.roomCode) { reset(); router.push(`/room/${state.roomCode}`); }
+      else { reset(); router.push('/lobby'); }
+    } catch { reset(); router.push('/lobby'); }
+  };
+
+  const handleGoHome = () => { reset(); router.push('/dashboard'); };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden"
+      style={{ background: isWinner ? 'radial-gradient(ellipse at center, #1e1b4b 0%, #0f0e17 100%)' : 'radial-gradient(ellipse at center, #1a0a0a 0%, #0f0e17 100%)' }}>
+
+      {/* Confetti */}
+      {confettiItems.map((c, i) => <ConfettiParticle key={i} {...c} />)}
+
+      {/* Animated background rings */}
+      {isWinner && (
+        <>
+          <motion.div animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0, 0.2] }} transition={{ duration: 3, repeat: Infinity }}
+            className="absolute w-96 h-96 rounded-full border border-yellow-500/30 pointer-events-none" />
+          <motion.div animate={{ scale: [1.2, 1.8, 1.2], opacity: [0.15, 0, 0.15] }} transition={{ duration: 3, repeat: Infinity, delay: 0.5 }}
+            className="absolute w-96 h-96 rounded-full border border-indigo-500/30 pointer-events-none" />
+        </>
+      )}
+
+      <div className="relative z-10 w-full max-w-lg mx-4 space-y-6">
+        {/* Trophy / Broken heart */}
+        <motion.div initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', bounce: 0.6, duration: 0.8 }}
+          className="text-center">
+          <div className="text-9xl mb-4">{isWinner ? '🏆' : '💔'}</div>
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+            className={`text-5xl font-black ${isWinner ? 'text-yellow-400' : 'text-white/80'}`}
+            style={isWinner ? { textShadow: '0 0 40px rgba(251,191,36,0.6)' } : {}}>
+            {isWinner ? 'VICTORY!' : `${winner?.name ?? 'Player'} Wins!`}
+          </motion.h1>
+          <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.6 }}
+            className="text-white/50 mt-2 text-lg">
+            {isWinner ? 'Incredible! You played like a pro.' : 'Better luck next time!'}
+            {gameResult?.duration_seconds ? <span className="ml-2">· {formatDuration(gameResult.duration_seconds)}</span> : null}
+          </motion.p>
+        </motion.div>
+
+        {/* Player scorecards */}
+        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
+          className="space-y-3">
+          {resultPlayers.map((p: any, i: number) => {
+            const isMe = p.user_id === user?.id;
+            const isWin = p.user_id === winnerId;
+            return (
+              <motion.div key={p.user_id}
+                initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.8 + i * 0.1 }}
+                className={`flex items-center gap-4 p-4 rounded-2xl border ${isWin ? 'bg-yellow-500/10 border-yellow-500/40' : 'bg-white/5 border-white/10'} ${isMe ? 'ring-2 ring-indigo-500/60' : ''}`}>
+                <div className="text-2xl w-8 text-center">{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</div>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {p.avatar ? <img src={p.avatar} className="w-10 h-10 rounded-full" alt={p.name} /> : (
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold">{(p.name ?? 'P')[0].toUpperCase()}</div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-bold text-white text-sm truncate">{p.name} {isMe && <span className="text-indigo-400">(You)</span>}</p>
+                    <p className="text-white/40 text-xs">{p.score ?? 0} pts</p>
+                  </div>
+                </div>
+                {p.xp_earned != null && (
+                  <div className="text-right">
+                    <p className="text-green-400 font-bold text-sm">+{p.xp_earned} XP</p>
+                    {isWin && <p className="text-yellow-400 text-xs">Winner!</p>}
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </motion.div>
+
+        {/* XP gained banner for current user */}
+        {myResult?.xp_earned != null && (
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 1.2 }}
+            className="flex items-center justify-center gap-3 py-3 px-6 rounded-2xl bg-indigo-600/20 border border-indigo-500/30">
+            <span className="text-2xl">⭐</span>
+            <span className="text-indigo-300 font-semibold">You earned <span className="text-white font-black">{myResult.xp_earned} XP</span> this game!</span>
+          </motion.div>
+        )}
+
+        {/* Action buttons */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.4 }}
+          className="flex gap-3">
+          <button onClick={handlePlayAgain}
+            className="flex-1 py-4 px-6 rounded-2xl font-black text-lg text-white transition-all hover:scale-105 active:scale-95"
+            style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)', boxShadow: '0 0 30px rgba(99,102,241,0.5)' }}>
+            🎮 Play Again
+          </button>
+          <button onClick={handleGoHome}
+            className="py-4 px-6 rounded-2xl font-bold text-white/70 bg-white/5 border border-white/10 hover:bg-white/10 transition-all hover:scale-105 active:scale-95">
+            🏠 Home
+          </button>
+        </motion.div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Turn Timer Bar ───────────────────────────────────────────────
 function TurnTimer({ seconds, total }: { seconds: number; total: number }) {
   const pct = (seconds / total) * 100;
@@ -91,6 +236,7 @@ function TurnTimer({ seconds, total }: { seconds: number; total: number }) {
   );
 }
 
+
 // ─── Main Game Board ──────────────────────────────────────────────
 export function GameBoard({ gameId }: { gameId: number }) {
   const { user } = useAuthStore();
@@ -101,14 +247,17 @@ export function GameBoard({ gameId }: { gameId: number }) {
   } = useGameStore();
 
   const isMyTurn = state?.current_player_id === user?.id;
+  const [dealing, setDealing] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch initial state
   useEffect(() => {
+    setDealing(true);
     gameApi.state(gameId).then(r => {
       setState(r.data.state);
       setPlayers(r.data.game?.players ?? []);
+      setTimeout(() => setDealing(false), 1400);
     }).catch(() => toast.error('Failed to load game state'));
   }, [gameId]);
 
@@ -172,6 +321,15 @@ export function GameBoard({ gameId }: { gameId: number }) {
     try {
       const r = await gameApi.playCard(gameId, { card_id: cardId, chosen_color: chosenColor });
       setState(r.data.state);
+      // If the game ended (we emptied our hand and crossed points threshold), trigger immediately
+      if (r.data.state?.status === 'finished') {
+        // Fetch full game state to get winner/scores
+        const full = await gameApi.state(gameId);
+        const game = full.data.game;
+        if (game?.status === 'finished' && game?.winner_id) {
+          applyGameEnded({ winner_id: game.winner_id });
+        }
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Invalid move');
     }
@@ -200,7 +358,11 @@ export function GameBoard({ gameId }: { gameId: number }) {
       const isHost = players.filter(p => p.type === 'human').sort((a, b) => a.seat - b.seat)[0]?.user_id === user?.id;
       if (isHost) {
         const timer = setTimeout(() => {
-          gameApi.nextRound(gameId).catch(() => toast.error('Failed to start next round'));
+          setDealing(true);
+          gameApi.nextRound(gameId).then(r => {
+            setState(r.data.state);
+            setTimeout(() => setDealing(false), 1400);
+          }).catch(() => toast.error('Failed to start next round'));
         }, 5000);
         return () => clearTimeout(timer);
       }
@@ -208,17 +370,7 @@ export function GameBoard({ gameId }: { gameId: number }) {
   }, [state?.status, gameEnded, players, user?.id, gameId]);
 
   if (gameEnded) {
-    const winner = players.find(p => p.user_id === winnerId);
-    return (
-      <div className="flex flex-col items-center justify-center min-h-dvh gap-6">
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.5 }} className="text-center space-y-4">
-          <div className="text-8xl">{winnerId === user?.id ? '🏆' : '💔'}</div>
-          <h2 className="text-4xl font-black text-white">{winnerId === user?.id ? 'You Win!' : `${winner?.name} Wins!`}</h2>
-          <p className="text-white/50">Game over</p>
-          <a href="/dashboard" className="btn btn-primary btn-lg">Back to Dashboard</a>
-        </motion.div>
-      </div>
-    );
+    return <GameOverScreen gameId={gameId} />;
   }
 
   // Overlay for when a round finishes (but game is not over)
@@ -240,6 +392,29 @@ export function GameBoard({ gameId }: { gameId: number }) {
   return (
     <div className="flex flex-col min-h-dvh bg-[hsl(var(--surface-bg))] relative">
       {roundFinishedOverlay}
+
+      {/* Card Dealing Animation Overlay */}
+      <AnimatePresence>
+        {dealing && (
+          <motion.div initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center pointer-events-none">
+            <div className="relative w-40 h-40">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <motion.div key={i}
+                  initial={{ x: 0, y: 0, rotate: 0, opacity: 1 }}
+                  animate={{ x: (i - 3) * 55, y: 80, rotate: (i - 3) * 8, opacity: 1 }}
+                  transition={{ delay: i * 0.1, duration: 0.4, ease: 'backOut' }}
+                  className="absolute top-0 left-0 w-16 h-24 rounded-xl uno-card-back border border-indigo-500/50" />
+              ))}
+            </div>
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+              className="absolute bottom-1/3 text-white/60 text-lg font-semibold tracking-widest uppercase">
+              Dealing Cards...
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Opponents */}
       <div className="flex items-center justify-center gap-8 pt-6 px-6 flex-wrap">
         {opponents.map(p => (

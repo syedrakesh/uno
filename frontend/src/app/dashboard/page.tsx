@@ -13,7 +13,7 @@ export default function DashboardPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadData = () => {
     Promise.all([
       userApi.myStats().catch(() => ({ data: { stats: null } })),
       roomApi.list({ per_page: 6 }).catch(() => ({ data: { data: [] } })),
@@ -24,6 +24,13 @@ export default function DashboardPage() {
       setHistory(h.data.data || []);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    loadData();
+    const handleFocus = () => loadData();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const statCards = [
