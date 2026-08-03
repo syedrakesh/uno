@@ -68,7 +68,11 @@ class RoomController extends Controller {
 
     public function join(Request $request, string $code): JsonResponse {
         $data = $request->validate(['password'=>'nullable|string','role'=>'nullable|in:player,spectator']);
-        $room = Room::where('code',$code)->whereIn('status',['waiting'])->firstOrFail();
+        $room = Room::where('code',$code)->firstOrFail();
+        
+        if ($room->status !== 'waiting') {
+            return response()->json(['message'=>'Room is no longer accepting players.'],403);
+        }
         $user = $request->user();
 
         if (RoomBan::where('room_id',$room->id)->where('user_id',$user->id)->exists())

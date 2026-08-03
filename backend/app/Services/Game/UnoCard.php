@@ -27,13 +27,15 @@ class UnoCard
 
     public static function fromId(string $id): self
     {
-        [$color, $value] = explode('_', $id, 2);
+        $base = explode('#', $id)[0];
+        [$color, $value] = explode('_', $base, 2);
         return new self($color, $value, $id);
     }
 
-    public static function make(string $color, string $value): self
+    public static function make(string $color, string $value, string $instanceId = ''): self
     {
-        return new self($color, $value, "{$color}_{$value}");
+        $id = "{$color}_{$value}" . ($instanceId !== '' ? "#{$instanceId}" : "");
+        return new self($color, $value, $id);
     }
 
     public function isWild(): bool

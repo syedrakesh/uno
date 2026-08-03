@@ -9,26 +9,25 @@ use Illuminate\Support\Collection;
  */
 class UnoDeck
 {
-    /** Build a full standard 108-card deck */
     public static function build(): array
     {
         $cards = [];
 
         foreach (UnoCard::COLORS as $color) {
             // One 0 per color
-            $cards[] = UnoCard::make($color, '0')->id;
+            $cards[] = UnoCard::make($color, '0', '1')->id;
 
             // Two of each 1-9 + skip + reverse + draw_two
             foreach ([...range(1, 9), 'skip', 'reverse', 'draw_two'] as $value) {
-                $cards[] = UnoCard::make($color, (string)$value)->id;
-                $cards[] = UnoCard::make($color, (string)$value)->id;
+                $cards[] = UnoCard::make($color, (string)$value, '1')->id;
+                $cards[] = UnoCard::make($color, (string)$value, '2')->id;
             }
         }
 
         // 4 Wild + 4 Wild Draw Four
-        for ($i = 0; $i < 4; $i++) {
-            $cards[] = UnoCard::make('wild', 'wild')->id;
-            $cards[] = UnoCard::make('wild', 'wild_draw_four')->id;
+        for ($i = 1; $i <= 4; $i++) {
+            $cards[] = UnoCard::make('wild', 'wild', (string)$i)->id;
+            $cards[] = UnoCard::make('wild', 'wild_draw_four', (string)$i)->id;
         }
 
         return $cards; // 108 cards

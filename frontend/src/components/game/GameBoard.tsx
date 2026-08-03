@@ -95,10 +95,12 @@ function TurnTimer({ seconds, total }: { seconds: number; total: number }) {
 export function GameBoard({ gameId }: { gameId: number }) {
   const { user } = useAuthStore();
   const {
-    state, players, selectedCard, isMyTurn, showColorPicker, gameEnded, winnerId,
+    state, players, selectedCard, showColorPicker, gameEnded, winnerId,
     turnTimeLeft, setState, setPlayers, selectCard, setShowColorPicker,
     applyCardPlayed, applyTurnChanged, applyGameEnded, setTurnTimeLeft,
   } = useGameStore();
+
+  const isMyTurn = state?.current_player_id === user?.id;
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
