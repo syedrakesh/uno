@@ -30,7 +30,7 @@ export function getEcho(): Echo<any> {
     encrypted: false,
     disableStats: true,
     enabledTransports: ['ws', 'wss'],
-    authEndpoint: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost/api/v1'}/broadcasting/auth`,
+    authEndpoint: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'}/broadcasting/auth`,
     auth: {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -56,7 +56,7 @@ export function listenRoom(
   const channel = echo.join(`room.${roomId}`);
 
   if (callbacks.onPresence) {
-    channel.here(callbacks.onPresence).joining((m: any) => {}).leaving((m: any) => {});
+    channel.here(callbacks.onPresence).joining((m: any) => { }).leaving((m: any) => { });
   }
   if (callbacks.onUpdated) channel.listen('.room.updated', callbacks.onUpdated).listen('.room.created', callbacks.onUpdated).listen('.room.player_joined', callbacks.onUpdated).listen('.room.player_left', callbacks.onUpdated).listen('.room.player_ready', callbacks.onUpdated).listen('.room.game_started', callbacks.onUpdated).listen('.room.settings_updated', callbacks.onUpdated).listen('.room.ownership_transferred', callbacks.onUpdated).listen('.room.player_kicked', callbacks.onUpdated).listen('.room.player_banned', callbacks.onUpdated);
   if (callbacks.onChat) channel.listen('.chat.message', callbacks.onChat);
@@ -77,9 +77,9 @@ export function listenGame(
   const channel = echo.private(`game.${gameId}`);
 
   if (callbacks.onStateUpdated) channel.listen('.game.state.updated', callbacks.onStateUpdated);
-  if (callbacks.onCardPlayed)   channel.listen('.card.played', callbacks.onCardPlayed);
-  if (callbacks.onTurnChanged)  channel.listen('.turn.changed', callbacks.onTurnChanged);
-  if (callbacks.onGameEnded)    channel.listen('.game.ended', callbacks.onGameEnded);
+  if (callbacks.onCardPlayed) channel.listen('.card.played', callbacks.onCardPlayed);
+  if (callbacks.onTurnChanged) channel.listen('.turn.changed', callbacks.onTurnChanged);
+  if (callbacks.onGameEnded) channel.listen('.game.ended', callbacks.onGameEnded);
 
   return () => echo.leave(`game.${gameId}`);
 }

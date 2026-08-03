@@ -7,8 +7,16 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
+        then: function () {
+            // Register broadcast auth under /api/v1/broadcasting/auth
+            // so the frontend Echo client (which prefixes all calls with /api/v1) hits the right URL.
+            \Illuminate\Support\Facades\Broadcast::routes([
+                'prefix'     => 'api/v1',
+                'middleware' => ['api', 'auth:sanctum'],
+            ]);
+            require base_path('routes/channels.php');
+        },
     )
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->api(prepend: [

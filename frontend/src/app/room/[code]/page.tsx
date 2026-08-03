@@ -24,7 +24,20 @@ export default function RoomPage() {
 
   const loadRoom = async () => {
     try {
-      const r = await roomApi.get(code);
+      let r = await roomApi.get(code);
+      
+      // Auto-join if not in the room
+      if (user && !r.data.room.players.some((p: any) => p.user_id === user.id)) {
+        try {
+          await roomApi.join(code);
+          r = await roomApi.get(code); // reload with me in it
+        } catch (joinErr: any) {
+          toast.error(joinErr.response?.data?.message || 'Failed to join room');
+          router.push('/lobby');
+          return;
+        }
+      }
+      
       setRoom(r.data.room);
       const c = await roomApi.chat(code);
       setMessages((c.data.data ?? []).reverse());
@@ -62,7 +75,12 @@ export default function RoomPage() {
 
   const startGame = async () => {
     setStarting(true);
-    try { await gameApi.start(code); } catch (err: any) {
+    try { 
+      const res = await gameApi.start(code); 
+      if (res.data?.game?.id) {
+        router.push(`/game/${res.data.game.id}`);
+      }
+    } catch (err: any) {
       toast.error(err.response?.data?.message || 'Cannot start game');
       setStarting(false);
     }
